@@ -26,26 +26,39 @@
   <h2>チーム紹介</h2>
   <dl class="kv">
     <dt>チーム名</dt><dd>のっぽとひげ（よみ：のっぽとひげ）</dd>
-    <dt>発表順</dt><dd class="todo">★受付のくじで決定★</dd>
-    <dt>作品名</dt><dd><h1 class="todo">★作品名★</h1>★作品名よみがな★</dd>
+    <dt>発表順</dt><dd>7番目</dd>
+    <dt>作品名</dt><dd><h1><img src="./hikemap/logo.jpg" alt="" style="width:5rem;height:5rem;border-radius:1rem;vertical-align:-1rem"/> Mappin'</h1>（マッピン）— 登山準備の早送りマップ</dd>
   </dl>
 </section>
 
 <section class="slide">
-  <h2>作品URL — いま開けます</h2>
-  <p><a class="url" href="./">https://fumi-june.github.io/ai-hackathon-2026/</a></p>
-  <p class="kv">予備: <span class="url" style="font-size:1.5rem">https://ai-hackathon-2026-697.pages.dev/</span></p>
-  <p class="kv todo">★ここでライブデモ（山場をひとつだけ見せる）★</p>
+  <h2>お題「▶︎▶︎」の解釈</h2>
+  <p class="kv" style="font-size:3rem">▶︎▶︎ ＝ 連なる<b>山々</b> ＋ <b>早送り</b>（タイパ）</p>
+  <ul>
+    <li>登山の事前準備——クマ出没・登山道・山小屋・トイレ——は都県ごとにバラバラ</li>
+    <li>その面倒を<b>1画面に早送り</b>。準備不足による遭難と行政コストを減らす</li>
+  </ul>
+</section>
+
+<section class="slide">
+  <h2>作品URL — いま皆さんのスマホで開けます</h2>
+  <p><a class="url" href="./hikemap/">https://fumi-june.github.io/ai-hackathon-2026/hikemap/</a></p>
+  <ul>
+    <li>公式の危険情報 59ピン（3都県横断）・ワンタップで公式ページ直行</li>
+    <li>登山道24本 — <b>自分のルートをタップすると沿線500mの情報だけ浮かぶ</b></li>
+    <li>その場で誰でも投稿（写真つき）— 双方向の目撃網</li>
+  </ul>
+  <p class="kv" style="color:#fbbf24">▶ ライブデモ：ピン→公式直行 ／ 大倉尾根タップ→沿線集計 ／ 会場から投稿</p>
 </section>
 
 <section class="slide">
   <h2>開発に使用したツール類</h2>
   <ul>
-    <li>Claude Code — 設計・実装・デプロイまで</li>
-    <li>GitHub Pages / Cloudflare — ホスティング（二重化）</li>
-    <li>Google Chat — URL・コメントをリアルタイム共有</li>
-    <li>Let's note から EVO-X2 を遠隔操作（リモート開発機）</li>
-    <li class="todo">★Claude API（作品のAIバックエンド）— 本番前に確定★</li>
+    <li>Claude Code — 設計・実装・デプロイ・<b>データ構築</b>（公式発表＋OSMからピン59・ルート24本をAIが抽出・検証）</li>
+    <li>Leaflet ＋ 国土地理院地図 — 地図表示（GitHub Pages配信）</li>
+    <li>Cloudflare Workers ＋ KV — 投稿・写真の共有バックエンド</li>
+    <li>OpenStreetMap / Overpass API — 登山道・山小屋・トイレの線形と位置</li>
+    <li>Google Chat — URL・コメントを共有／Let's note から EVO-X2 を遠隔操作</li>
   </ul>
   <p style="font-size:1.3rem; color:#aaa">※ 今回は海外と日本で連携して開発したため、機材構成は遠隔でのやり取りを想定したものになっている</p>
 </section>
