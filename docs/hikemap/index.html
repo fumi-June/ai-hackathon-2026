@@ -220,16 +220,17 @@ function selectRoute(r) {
 function applyRelevance() {
   let cd = 0, cf = 0, cp = 0;
   const mark = (rec, isPost) => {
-    let on = true;
-    if (selectedRoute) on = pinDistM(rec.lat, rec.lng, selectedRoute.segs) <= NEAR_M;
-    rec.m.setStyle({ fillOpacity: on ? .85 : .12, opacity: on ? 1 : .25 });
-    rec.m.setRadius(on ? (selectedRoute ? 9 : 8) : 5);
-    if (selectedRoute && on) { if (isPost) cp++; else if (rec.p.layer === "danger") cd++; else cf++; }
+    // 全ピン常時フル表示（ユーザー指定：濃いまま）。関与は沿線ピンの拡大+太枠で示す
+    let near = false;
+    if (selectedRoute) near = pinDistM(rec.lat, rec.lng, selectedRoute.segs) <= NEAR_M;
+    rec.m.setStyle({ fillOpacity: .85, opacity: 1, weight: near ? 4 : 2 });
+    rec.m.setRadius(selectedRoute && near ? 11 : 8);
+    if (near) { if (isPost) cp++; else if (rec.p.layer === "danger") cd++; else cf++; }
   };
   staticMarkers.forEach(r => mark(r, false));
   postMarkers.forEach(r => mark(r, true));
   $("routeInfo").textContent = selectedRoute
-    ? `🥾 ${selectedRoute.name} 沿い${NEAR_M}m：⚠️危険${cd}件・🌄楽しみ${cf}件・💬投稿${cp}件（薄いピンはルート外）`
+    ? `🥾 ${selectedRoute.name} 沿い${NEAR_M}m：⚠️危険${cd}件・🌄楽しみ${cf}件・💬投稿${cp}件（大きいピン＝ルート沿い）`
     : "";
 }
 function renderChips() {
