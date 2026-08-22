@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>プレゼン（3分）</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: system-ui, sans-serif; background: #111; color: #eee; }
+  .slide { display: none; min-height: 100vh; padding: 6vh 8vw; flex-direction: column; justify-content: center; gap: 2.5rem; }
+  .slide.on { display: flex; }
+  h1 { font-size: 4rem; line-height: 1.2; }
+  h2 { font-size: 2.5rem; color: #7dd3fc; }
+  .kv { font-size: 2rem; line-height: 1.6; }
+  .kv dt { color: #999; font-size: 1.2rem; margin-top: 1rem; }
+  .kv dd { font-weight: bold; }
+  .url { font-size: 2.2rem; color: #fbbf24; word-break: break-all; }
+  .todo { color: #f87171; }
+  ul { font-size: 1.8rem; line-height: 1.8; list-style-position: inside; }
+  .nav { position: fixed; bottom: 1rem; right: 1.5rem; color: #666; font-size: 1rem; }
+</style>
+</head>
+<body>
+
+<section class="slide on">
+  <h2>チーム紹介</h2>
+  <dl class="kv">
+    <dt>チーム名</dt><dd class="todo">★チーム名★（★よみがな★）</dd>
+    <dt>発表順</dt><dd class="todo">★受付のくじで決定★</dd>
+    <dt>作品名</dt><dd><h1 class="todo">★作品名★</h1>★作品名よみがな★</dd>
+  </dl>
+</section>
+
+<section class="slide">
+  <h2>作品URL — いま開けます</h2>
+  <p><a class="url" href="./">https://fumi-june.github.io/ai-hackathon-2026/</a></p>
+  <p class="kv">予備: <span class="url" style="font-size:1.5rem">https://ai-hackathon-2026-697.pages.dev/</span></p>
+  <p class="kv todo">★ここでライブデモ（山場をひとつだけ見せる）★</p>
+</section>
+
+<section class="slide">
+  <h2>開発に使用したツール類</h2>
+  <ul>
+    <li>Claude Code（Claude Fable 5）— 設計・実装・デプロイまで</li>
+    <li>Claude API — アプリ内のAIバックエンド</li>
+    <li>GitHub Pages / Cloudflare Pages — ホスティング（二重化）</li>
+    <li class="todo">★その他あれば追記★</li>
+  </ul>
+</section>
+
+<div class="nav">←/→ でスライド切替</div>
+<script>
+  const s = document.querySelectorAll('.slide'); let i = 0;
+  addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight') i = Math.min(i + 1, s.length - 1);
+    else if (e.key === 'ArrowLeft') i = Math.max(i - 1, 0);
+    else return;
+    s.forEach((el, n) => el.classList.toggle('on', n === i));
+  });
+</script>
+</body>
+</html>

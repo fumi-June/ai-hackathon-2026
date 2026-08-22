@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>AI Hackathon 2026 提出ページ</title>
+  <style>
+    body { margin:0; font-family:"Hiragino Sans","Noto Sans JP",system-ui,sans-serif;
+           background:#0f172a; color:#e2e8f0; display:grid; place-items:center; min-height:100vh; }
+    main { max-width:560px; padding:32px; }
+    h1 { font-size:22px; margin:0 0 8px; }
+    p  { color:#94a3b8; line-height:1.7; }
+    ul { list-style:none; padding:0; font-size:14px; }
+    li { padding:4px 0; }
+    .ok::before { content:"✅ "; } .ng::before { content:"❌ "; } .wait::before { content:"⏳ "; }
+    code { background:#1e293b; padding:2px 6px; border-radius:4px; font-size:13px; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>AI Hackathon 2026 提出ページ</h1>
+    <p>ここにハッカソン当日の作品が公開されます。現在は配信経路の自己診断ページです。</p>
+    <ul id="checks">
+      <li id="c-path" class="wait">ベースパス: <code id="v-path">…</code></li>
+      <li id="c-https" class="wait">secure context (HTTPS)</li>
+      <li id="c-fetch" class="wait">相対パス fetch（<code>./probe.json</code>）</li>
+      <li id="c-jekyll" class="wait">.nojekyll（<code>./_probe.json</code>）</li>
+    </ul>
+  </main>
+  <script>
+    const set = (id, ok) => { document.getElementById(id).className = ok ? 'ok' : 'ng'; };
+    document.getElementById('v-path').textContent = location.pathname;
+    set('c-path', true);
+    set('c-https', window.isSecureContext);
+    fetch('./probe.json').then(r => set('c-fetch', r.ok)).catch(() => set('c-fetch', false));
+    fetch('./_probe.json').then(r => set('c-jekyll', r.ok)).catch(() => set('c-jekyll', false));
+  </script>
+</body>
+</html>
