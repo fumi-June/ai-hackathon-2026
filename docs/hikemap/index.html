@@ -25,6 +25,9 @@
     #cands { margin-top:4px; }
     #cands div { padding:4px 8px; background:#f0f4ff; border-radius:6px; margin-top:3px; cursor:pointer; }
     #cands div:hover { background:#dbe6ff; }
+    .btns .chip { background:#eef3f8; border-color:#9db3c8; }
+    .btns .chip.sel { background:#ff5722; color:#fff; border-color:#ff5722; }
+    #routeInfo { margin-top:4px; font-size:12px; color:#1a3c6e; font-weight:bold; }
     .legend { margin-top:6px; color:#333; font-size:11px; line-height:1.9; }
     .legend i { display:inline-block; width:10px; height:10px; border-radius:50%; margin:0 3px 0 8px; }
     .popup b { display:block; margin-bottom:3px; }
@@ -61,6 +64,8 @@
     <button id="qBtn">検索</button>
   </div>
   <div id="cands"></div>
+  <div class="btns" id="routeChips" style="margin-top:6px"></div>
+  <div id="routeInfo"></div>
   <div class="legend">
     危険：<i style="background:#d32f2f"></i>人身被害<i style="background:#f57c00"></i>クマ目撃<i style="background:#fbc02d"></i>痕跡<i style="background:#7b1fa2"></i>通行止め<i style="background:#37474f"></i>公式マップ入口
     ／楽しみ：<i style="background:#2e7d32"></i>山小屋<i style="background:#1565c0"></i>展望<i style="background:#00838f"></i>食
@@ -97,7 +102,8 @@ L.tileLayer("https://cyberjapandata.gsi.go.jp/xyz/pale/{z}/{x}/{y}.png", {
 const dangerLayer = L.layerGroup().addTo(map);
 const funLayer = L.layerGroup().addTo(map);
 const postsLayer = L.layerGroup().addTo(map);
-L.control.layers(null, { "⚠️ 危険（公式）": dangerLayer, "🌄 楽しみ": funLayer, "💬 みんなの投稿": postsLayer },
+const routesLayer = L.layerGroup().addTo(map);
+L.control.layers(null, { "🥾 登山ルート": routesLayer, "⚠️ 危険（公式）": dangerLayer, "🌄 楽しみ": funLayer, "💬 みんなの投稿": postsLayer },
   { collapsed: false, position: "bottomleft" }).addTo(map);
 
 let currentArea = "tanzawa";
@@ -122,14 +128,90 @@ function pinPopup(p) {
   return d;
 }
 
+const staticMarkers = [];
 fetch("./pins.geojson").then(r => r.json()).then(g => {
   allFeatures = g.features || [];
   for (const f of allFeatures) {
     const p = f.properties, [lng, lat] = f.geometry.coordinates;
     const m = marker([lat, lng], COLORS[p.kind] || "#666").bindPopup(pinPopup(p));
     (p.layer === "danger" ? dangerLayer : funLayer).addLayer(m);
+    staticMarkers.push({ m, lat, lng, p });
   }
 }).catch(() => toast("ピンデータの読み込みに失敗（地図は使えます）"));
+
+// ---- 登山ルート：選ぶと「自分に関与する情報」だけ浮かび上がる ----
+const NEAR_M = 500;
+let routes = [], selectedRoute = null;
+function segsOf(geom) {
+  const segs = [];
+  for (const line of geom.coordinates)
+    for (let i = 1; i < line.length; i++)
+      segs.push([line[i - 1][1], line[i - 1][0], line[i][1], line[i][0]]);
+  return segs;
+}
+function pinDistM(lat, lng, segs) {
+  const KX = 111320 * Math.cos(lat * Math.PI / 180), KY = 110540;
+  let best = Infinity;
+  for (const [aLat, aLng, bLat, bLng] of segs) {
+    const ax = (aLng - lng) * KX, ay = (aLat - lat) * KY, bx = (bLng - lng) * KX, by = (bLat - lat) * KY;
+    const dx = bx - ax, dy = by - ay, l2 = dx * dx + dy * dy;
+    let t = l2 ? -(ax * dx + ay * dy) / l2 : 0; t = Math.max(0, Math.min(1, t));
+    const d = Math.hypot(ax + t * dx, ay + t * dy);
+    if (d < best) best = d;
+  }
+  return best;
+}
+fetch("./routes.geojson").then(r => r.json()).then(g => {
+  for (const f of (g.features || [])) {
+    const rec = { name: f.properties.name, area: f.properties.area, segs: segsOf(f.geometry) };
+    rec.line = L.geoJSON(f, { style: { color: "#5a7d9a", weight: 3, opacity: .55 } })
+      .bindTooltip(rec.name, { sticky: true })
+      .on("click", () => { if (currentArea !== rec.area) setArea(rec.area, false); selectRoute(rec); });
+    routesLayer.addLayer(rec.line);
+    routes.push(rec);
+  }
+  renderChips();
+}).catch(() => {});
+function selectRoute(r) {
+  selectedRoute = (r === selectedRoute) ? null : r;
+  for (const q of routes) q.line.setStyle({
+    color: q === selectedRoute ? "#ff5722" : "#5a7d9a",
+    weight: q === selectedRoute ? 6 : 3,
+    opacity: selectedRoute ? (q === selectedRoute ? .95 : .2) : .55,
+  });
+  applyRelevance(); renderChips();
+}
+function applyRelevance() {
+  let cd = 0, cf = 0, cp = 0;
+  const mark = (rec, isPost) => {
+    let on = true;
+    if (selectedRoute) on = pinDistM(rec.lat, rec.lng, selectedRoute.segs) <= NEAR_M;
+    rec.m.setStyle({ fillOpacity: on ? .85 : .12, opacity: on ? 1 : .25 });
+    rec.m.setRadius(on ? (selectedRoute ? 9 : 8) : 5);
+    if (selectedRoute && on) { if (isPost) cp++; else if (rec.p.layer === "danger") cd++; else cf++; }
+  };
+  staticMarkers.forEach(r => mark(r, false));
+  postMarkers.forEach(r => mark(r, true));
+  $("routeInfo").textContent = selectedRoute
+    ? `🥾 ${selectedRoute.name} 沿い${NEAR_M}m：⚠️危険${cd}件・🌄楽しみ${cf}件・💬投稿${cp}件（薄いピンはルート外）`
+    : "";
+}
+function renderChips() {
+  const box = $("routeChips"); box.textContent = "";
+  const rs = routes.filter(r => r.area === currentArea);
+  if (!rs.length) return;
+  const all = document.createElement("button");
+  all.textContent = "ルート: 全体"; all.className = "chip" + (selectedRoute ? "" : " sel");
+  all.onclick = () => { if (selectedRoute) selectRoute(selectedRoute); };
+  box.appendChild(all);
+  for (const r of rs) {
+    const b = document.createElement("button");
+    b.textContent = "🥾 " + r.name;
+    b.className = "chip" + (selectedRoute === r ? " sel" : "");
+    b.onclick = () => selectRoute(r);
+    box.appendChild(b);
+  }
+}
 
 // ---- みんなの投稿（更新は 初回 / 自分の投稿直後 / 手動🔄 のみ。ポーリングなし） ----
 function postPopup(p) {
@@ -141,11 +223,16 @@ function postPopup(p) {
   const t = document.createElement("div"); t.textContent = p.text; d.appendChild(t);
   return d;
 }
+const postMarkers = [];
 async function loadPosts() {
   try {
     const posts = await (await fetch(POSTS_API)).json();
-    postsLayer.clearLayers();
-    for (const p of posts) postsLayer.addLayer(marker([p.lat, p.lng], "#d81b60").bindPopup(postPopup(p)));
+    postsLayer.clearLayers(); postMarkers.length = 0;
+    for (const p of posts) {
+      const m = marker([p.lat, p.lng], "#d81b60").bindPopup(postPopup(p));
+      postsLayer.addLayer(m); postMarkers.push({ m, lat: p.lat, lng: p.lng, p });
+    }
+    if (selectedRoute) applyRelevance();
     return posts.length;
   } catch { toast("投稿の取得に失敗"); return -1; }
 }
@@ -206,44 +293,46 @@ async function doSearch() {
 }
 
 // ---- 山域切替 ----
-for (const btn of document.querySelectorAll(".area")) {
-  btn.onclick = () => {
-    document.querySelectorAll(".area").forEach(b => b.classList.remove("on"));
-    btn.classList.add("on");
-    currentArea = btn.dataset.area;
-    map.flyToBounds(AREAS[currentArea].bounds);
-  };
+function setArea(area, fly = true) {
+  currentArea = area;
+  document.querySelectorAll(".area").forEach(b => b.classList.toggle("on", b.dataset.area === area));
+  if (fly) map.flyToBounds(AREAS[area].bounds);
+  if (selectedRoute && selectedRoute.area !== area) selectRoute(selectedRoute); // 解除
+  renderChips();
 }
+for (const btn of document.querySelectorAll(".area")) btn.onclick = () => setArea(btn.dataset.area);
 
 // ---- AI準備完了カード（表示中の山域ピン → Claude。失敗しても地図と投稿は独立して生きる） ----
 const card = $("card");
 $("aiBtn").onclick = makeBriefing;
 async function makeBriefing() {
   const a = AREAS[currentArea];
-  const feats = allFeatures.filter(f => f.properties.area === currentArea)
+  const scope = a.label + (selectedRoute ? "・" + selectedRoute.name : "");
+  const feats = allFeatures.filter(f => f.properties.area === currentArea &&
+      (!selectedRoute || pinDistM(f.geometry.coordinates[1], f.geometry.coordinates[0], selectedRoute.segs) <= NEAR_M))
     .map(f => ({ layer: f.properties.layer, kind: f.properties.kind, title: f.properties.title,
                  date: f.properties.date, summary: f.properties.summary }));
   card.style.display = "block";
-  $("cardBody").textContent = `⚡ ${a.label}の準備完了カードを生成中…`;
+  $("cardBody").textContent = `⚡ ${scope}の準備完了カードを生成中…`;
   try {
     const r = await fetch(PROXY, { method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ model: "claude-sonnet-5", max_tokens: 900, stream: false,
         messages: [{ role: "user", content:
-          `あなたは登山ガイド。${a.label}へ明日登る人向けの「準備完了カード」を作る。以下は現地の危険・楽しみピン情報(JSON): ` +
+          `あなたは登山ガイド。${scope}へ明日登る人向けの「準備完了カード」を作る。以下は現地（ルート指定時はそのルート沿い500m）の危険・楽しみピン情報(JSON): ` +
           JSON.stringify(feats) +
           ` 出力は次のJSONのみ（コードフェンス不要）: {"dangers":["危険の要点を最大3件、日付が新しいもの優先"],"highlights":["楽しみの要点を最大3件"],"gear":["この状況に合わせた持ち物4〜6点"],"note":"一言アドバイス"}` }] }),
     });
     if (!r.ok) throw 0;
     const j = await r.json();
     let text = (j.content && j.content[0] && j.content[0].text) || "";
-    renderCard(a, text, feats);
+    renderCard(scope, text, feats);
   } catch {
     $("cardBody").textContent = "AI応答なし——地図とピンはそのまま使えます。";
   }
 }
-function renderCard(a, text, feats) {
+function renderCard(scope, text, feats) {
   const body = $("cardBody"); body.textContent = "";
-  const h = document.createElement("h2"); h.textContent = `✅ ${a.label}・準備完了カード`; body.appendChild(h);
+  const h = document.createElement("h2"); h.textContent = `✅ ${scope}・準備完了カード`; body.appendChild(h);
   let d;
   try { d = JSON.parse(text.replace(/^```json?\s*|\s*```$/g, "")); } catch { d = null; }
   if (!d) { const pre = document.createElement("div"); pre.textContent = text; body.appendChild(pre); }
