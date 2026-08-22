@@ -81,6 +81,8 @@
     <button data-area="tanzawa" class="area on">丹沢</button>
     <button data-area="okutama" class="area">奥多摩・高尾</button>
     <button data-area="chichibu" class="area">秩父・両神山</button>
+    <button data-area="osaka" class="area">大阪</button>
+    <button data-area="rokko" class="area">六甲</button>
     <button id="postBtn">📍 投稿する</button>
     <button id="reloadBtn" title="みんなの投稿を再取得">🔄 更新</button>
     <button id="moreBtn" title="凡例の表示切替">🗒 凡例</button>
@@ -89,7 +91,7 @@
   <div id="more">
   <div class="legend">
     <span class="lg">危険：<span class="lgi" style="background:#d32f2f">🐻</span>人身被害<span class="lgi" style="background:#f57c00">🐻</span>クマ目撃<span class="lgi" style="background:#fbc02d">🐾</span>痕跡<span class="lgi" style="background:#7b1fa2">🚧</span>通行止め<span class="lgi" style="background:#37474f">🗺️</span>公式マップ入口<span class="lgi" style="background:#4e342e">⚠️</span>過去の主な事故</span>
-    <span class="lg">楽しみ：<span class="lgi" style="background:#2e7d32">🏠</span>山小屋<span class="lgi" style="background:#1565c0">🔭</span>展望<span class="lgi" style="background:#00838f">🍜</span>食<span class="lgi" style="background:#607d8b">🚻</span>トイレ</span>
+    <span class="lg">楽しみ：<span class="lgi" style="background:#2e7d32">🏠</span>山小屋<span class="lgi" style="background:#1565c0">🔭</span>展望<span class="lgi" style="background:#00838f">🍜</span>食<span class="lgi" style="background:#607d8b">🚻</span>トイレ<span class="lgi" style="background:#8d6e63">⛰</span>山頂<span class="lgi" style="background:#1da1f2">📣</span>SNS</span>
     <span class="lg"><span class="lgi" style="background:#00bcd4">💬</span>みんなの投稿（📷景色 🍜食 🏠山小屋 😵困った）</span>
   </div>
   </div>
@@ -110,15 +112,18 @@ const AREAS = {
   tanzawa:  { label: "丹沢山塊",     bounds: [[35.38, 139.02], [35.58, 139.30]] },
   okutama:  { label: "奥多摩・高尾", bounds: [[35.55, 138.93], [36.00, 139.35]] },
   chichibu: { label: "秩父・両神山", bounds: [[35.85, 138.65], [36.10, 139.20]] },
+  osaka:    { label: "大阪（金剛山・箕面・生駒）", bounds: [[34.30, 135.40], [34.95, 135.78]] },
+  rokko:    { label: "六甲山",       bounds: [[34.68, 135.10], [34.82, 135.35]] },
 };
 const COLORS = {
   attack: "#d32f2f", sighting: "#f57c00", trace: "#fbc02d", closure: "#7b1fa2", official: "#37474f",
-  accident: "#4e342e",
-  hut: "#2e7d32", view: "#1565c0", food: "#00838f", toilet: "#607d8b",
+  accident: "#4e342e", monkey: "#f57c00",
+  hut: "#2e7d32", view: "#1565c0", food: "#00838f", toilet: "#607d8b", sns: "#1da1f2", peak: "#8d6e63",
 };
 const POST_KINDS = ["目撃・危険", "景色", "食べ物", "山小屋", "困った", "その他"];
 const ICONS = { attack: "🐻", sighting: "🐻", trace: "🐾", closure: "🚧", official: "🗺️",
-                accident: "⚠️", hut: "🏠", view: "🔭", food: "🍜", toilet: "🚻" };
+                accident: "⚠️", monkey: "🐒",
+                hut: "🏠", view: "🔭", food: "🍜", toilet: "🚻", sns: "📣", peak: "⛰" };
 const POST_ICONS = { "目撃・危険": "🐻", "景色": "📷", "食べ物": "🍜", "山小屋": "🏠", "困った": "😵", "その他": "💬" };
 
 const $ = id => document.getElementById(id);
