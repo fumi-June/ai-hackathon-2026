@@ -33,6 +33,9 @@
     .arealabel { background:rgba(255,255,255,.9); border:1px solid #1a3c6e; color:#1a3c6e;
                  border-radius:4px; padding:1px 6px; font-size:11px; font-weight:bold; box-shadow:none; }
     .arealabel::before { display:none; }
+    @media (max-width: 600px) {
+      .bar h1 small span.tag { display:none; }  /* モバイルはタグライン非表示 */
+    }
     .legend { margin-top:6px; color:#333; font-size:11px; line-height:1.9; }
     .legend i { display:inline-block; width:10px; height:10px; border-radius:50%; margin:0 3px 0 8px; }
     .popup b { display:block; margin-bottom:3px; }
@@ -55,7 +58,7 @@
 </head>
 <body>
 <div class="bar">
-  <h1>⛰️ ヤマスキップ <small>— 危険も楽しみも1画面。登山の準備、早送り。<a href="../presen.html">▶ プレゼン</a></small></h1>
+  <h1>⛰️ ヤマスキップ <small><span class="tag">— 危険も楽しみも1画面。登山の準備、早送り。</span><a href="../presen.html">▶ プレゼン</a></small></h1>
   <div class="btns">
     <button data-area="tanzawa" class="area on">丹沢</button>
     <button data-area="okutama" class="area">奥多摩・高尾</button>
@@ -63,18 +66,21 @@
     <button id="postBtn">📍 投稿する</button>
     <button id="reloadBtn" title="みんなの投稿を再取得">🔄 更新</button>
     <button id="aiBtn" class="ai">⚡ AI準備完了カード</button>
+    <button id="moreBtn" title="検索と凡例の表示切替">🔍 検索・凡例</button>
   </div>
+  <div class="btns" id="routeChips" style="margin-top:6px"></div>
+  <div id="routeInfo"></div>
+  <div id="more">
   <div class="searchrow">
     <input id="q" placeholder="住所・施設名で場所を指定（例：奥多摩駅、清川村煤ヶ谷）"/>
     <button id="qBtn">検索</button>
   </div>
   <div id="cands"></div>
-  <div class="btns" id="routeChips" style="margin-top:6px"></div>
-  <div id="routeInfo"></div>
   <div class="legend">
     危険：<i style="background:#d32f2f"></i>人身被害<i style="background:#f57c00"></i>クマ目撃<i style="background:#fbc02d"></i>痕跡<i style="background:#7b1fa2"></i>通行止め<i style="background:#37474f"></i>公式マップ入口
     ／楽しみ：<i style="background:#2e7d32"></i>山小屋<i style="background:#1565c0"></i>展望<i style="background:#00838f"></i>食
     ／<i style="background:#d81b60"></i>みんなの投稿
+  </div>
   </div>
 </div>
 <div id="map"></div>
@@ -99,6 +105,11 @@ const COLORS = {
 const POST_KINDS = ["目撃・危険", "景色", "食べ物", "山小屋", "困った", "その他"];
 
 const $ = id => document.getElementById(id);
+// モバイルは地図が主役：検索・凡例は畳んでバー占有率を下げる（🔍で開閉）
+if (innerWidth < 600) $("more").style.display = "none";
+$("moreBtn").onclick = () => {
+  $("more").style.display = $("more").style.display === "none" ? "" : "none";
+};
 const map = L.map("map", { zoomControl: false });
 L.control.zoom({ position: "bottomright" }).addTo(map);
 L.tileLayer("https://cyberjapandata.gsi.go.jp/xyz/pale/{z}/{x}/{y}.png", {
