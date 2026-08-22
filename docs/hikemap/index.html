@@ -85,7 +85,7 @@
   <div id="routeInfo"></div>
   <div id="more">
   <div class="legend">
-    <span class="lg">危険：<i style="background:#d32f2f"></i>人身被害<i style="background:#f57c00"></i>クマ目撃<i style="background:#fbc02d"></i>痕跡<i style="background:#7b1fa2"></i>通行止め<i style="background:#37474f"></i>公式マップ入口</span>
+    <span class="lg">危険：<i style="background:#d32f2f"></i>人身被害<i style="background:#f57c00"></i>クマ目撃<i style="background:#fbc02d"></i>痕跡<i style="background:#7b1fa2"></i>通行止め<i style="background:#37474f"></i>公式マップ入口<i style="background:#4e342e"></i>⚠️過去の主な事故</span>
     <span class="lg">楽しみ：<i style="background:#2e7d32"></i>山小屋<i style="background:#1565c0"></i>展望<i style="background:#00838f"></i>食<i style="background:#607d8b"></i>🚻トイレ</span>
     <span class="lg"><i style="background:#00bcd4"></i>みんなの投稿</span>
   </div>
@@ -110,11 +110,12 @@ const AREAS = {
 };
 const COLORS = {
   attack: "#d32f2f", sighting: "#f57c00", trace: "#fbc02d", closure: "#7b1fa2", official: "#37474f",
+  accident: "#4e342e",
   hut: "#2e7d32", view: "#1565c0", food: "#00838f", toilet: "#607d8b",
 };
 const POST_KINDS = ["目撃・危険", "景色", "食べ物", "山小屋", "困った", "その他"];
 const ICONS = { attack: "🐻", sighting: "🐻", trace: "🐾", closure: "🚧", official: "🗺️",
-                hut: "🏠", view: "🔭", food: "🍜", toilet: "🚻" };
+                accident: "⚠️", hut: "🏠", view: "🔭", food: "🍜", toilet: "🚻" };
 const POST_ICONS = { "目撃・危険": "🐻", "景色": "📷", "食べ物": "🍜", "山小屋": "🏠", "困った": "😵", "その他": "💬" };
 
 const $ = id => document.getElementById(id);
