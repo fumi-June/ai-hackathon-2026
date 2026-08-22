@@ -37,6 +37,11 @@
       .bar h1 small span.tag { display:none; }  /* モバイルはタグライン非表示 */
       .btns button { min-height:44px; padding:8px 12px; }   /* タッチターゲット44px */
       .searchrow input, .searchrow button { min-height:44px; }
+      /* ボタン行・ルートチップは折り返さず横スクロール（バー肥大防止） */
+      .btns { flex-wrap:nowrap; overflow-x:auto; -webkit-overflow-scrolling:touch;
+              scrollbar-width:none; padding-bottom:2px; }
+      .btns::-webkit-scrollbar { display:none; }
+      .btns button { flex:0 0 auto; white-space:nowrap; }
     }
     .legend { margin-top:6px; color:#333; font-size:11px; line-height:1.9; }
     .legend .lg { white-space:nowrap; display:inline-block; margin-right:8px; }
@@ -71,7 +76,6 @@
     <button id="aiBtn" class="ai">⚡ AI準備完了カード</button>
     <button id="moreBtn" title="検索と凡例の表示切替">🔍 検索・凡例</button>
   </div>
-  <div class="btns" id="routeChips" style="margin-top:6px"></div>
   <div id="routeInfo"></div>
   <div id="more">
   <div class="searchrow">
@@ -200,22 +204,22 @@ function pinDistM(lat, lng, segs) {
 fetch("./routes.geojson").then(r => r.json()).then(g => {
   for (const f of (g.features || [])) {
     const rec = { name: f.properties.name, area: f.properties.area, segs: segsOf(f.geometry) };
-    rec.line = L.geoJSON(f, { style: { color: "#5a7d9a", weight: 3, opacity: .55 } })
+    rec.line = L.geoJSON(f, { style: { color: "#e64a19", weight: 4, opacity: .9 } })
       .bindTooltip(rec.name, { sticky: true })
       .on("click", () => { if (currentArea !== rec.area) setArea(rec.area, false); selectRoute(rec); });
     routesLayer.addLayer(rec.line);
     routes.push(rec);
   }
-  renderChips();
 }).catch(() => {});
 function selectRoute(r) {
   selectedRoute = (r === selectedRoute) ? null : r;
+  // 全ルート常時・濃いオレンジ（ユーザー指定）。選択の区別は太さのみ
   for (const q of routes) q.line.setStyle({
-    color: q === selectedRoute ? "#ff5722" : "#5a7d9a",
-    weight: q === selectedRoute ? 6 : 3,
-    opacity: selectedRoute ? (q === selectedRoute ? .95 : .2) : .55,
+    color: "#e64a19",
+    weight: q === selectedRoute ? 7 : 4,
+    opacity: .9,
   });
-  applyRelevance(); renderChips();
+  applyRelevance();
 }
 function applyRelevance() {
   let cd = 0, cf = 0, cp = 0;
@@ -233,22 +237,8 @@ function applyRelevance() {
     ? `🥾 ${selectedRoute.name} 沿い${NEAR_M}m：⚠️危険${cd}件・🌄楽しみ${cf}件・💬投稿${cp}件（大きいピン＝ルート沿い）`
     : "";
 }
-function renderChips() {
-  const box = $("routeChips"); box.textContent = "";
-  const rs = routes.filter(r => r.area === currentArea);
-  if (!rs.length) return;
-  const all = document.createElement("button");
-  all.textContent = "ルート: 全体"; all.className = "chip" + (selectedRoute ? "" : " sel");
-  all.onclick = () => { if (selectedRoute) selectRoute(selectedRoute); };
-  box.appendChild(all);
-  for (const r of rs) {
-    const b = document.createElement("button");
-    b.textContent = "🥾 " + r.name;
-    b.className = "chip" + (selectedRoute === r ? " sel" : "");
-    b.onclick = () => selectRoute(r);
-    box.appendChild(b);
-  }
-}
+// ルート選択チップは廃止（ユーザー指定：ルートは常時表示、選択UIは不要。
+// 地図上のルート線タップでのみ沿線情報とAIカード絞りが働く）
 
 // ---- みんなの投稿（更新は 初回 / 自分の投稿直後 / 手動🔄 のみ。ポーリングなし） ----
 function postPopup(p) {
@@ -335,7 +325,6 @@ function setArea(area, fly = true) {
   document.querySelectorAll(".area").forEach(b => b.classList.toggle("on", b.dataset.area === area));
   if (fly) map.flyToBounds(AREAS[area].bounds);
   if (selectedRoute && selectedRoute.area !== area) selectRoute(selectedRoute); // 解除
-  renderChips();
 }
 for (const btn of document.querySelectorAll(".area")) btn.onclick = () => setArea(btn.dataset.area);
 
