@@ -18,6 +18,8 @@
   .todo { color: #f87171; }
   ul { font-size: 1.8rem; line-height: 1.8; list-style-position: inside; }
   .nav { position: fixed; bottom: 1rem; right: 1.5rem; color: #666; font-size: 1rem; }
+  .script p { font-size: 1.7rem; line-height: 1.8; }
+  .script b { color: #7dd3fc; }
 </style>
 </head>
 <body>
@@ -31,13 +33,21 @@
   </dl>
 </section>
 
-<section class="slide">
+<section class="slide script">
   <h2>お題「▶︎▶︎」の解釈</h2>
-  <p class="kv" style="font-size:3rem">▶︎▶︎ ＝ 連なる<b>山々</b> ＋ <b>早送り</b>（タイパ）</p>
-  <ul>
-    <li>登山の事前準備——クマ出没・登山道・山小屋・トイレ——は都県ごとにバラバラ</li>
-    <li>その面倒を<b>1画面に早送り</b>。準備不足による遭難と行政コストを減らす</li>
-  </ul>
+  <p style="font-size:2.6rem">▶︎▶︎ ＝ 連なる<b>「山々」</b> ＋ 時間を短縮し効率を高める<b>「早送り（タイパ）」</b></p>
+  <p>このシンボルから2つの意味を見出し、<b>「登山者の事前準備をいかに効率化できるか」</b>という問いからプロジェクトをスタートしました。</p>
+</section>
+
+<section class="slide script">
+  <h2>目指したのは、便利ツールの先</h2>
+  <p>このサービスが広く普及・加速することで、深刻化する<b>山岳遭難を防ぎ</b>、行政や救助にかかる<b>コストを削減</b>する。さらには、地方の<b>登山道管理やインフラ維持を持続可能に</b>する——そんな社会課題の解決に直結する仕組みを模索しました。</p>
+</section>
+
+<section class="slide script">
+  <h2>Mappin'（マッピン）</h2>
+  <p>その答えが、マッピング技術を活用した情報収集・提供プラットフォーム<b>「Mappin'」</b>。開発環境には <b>Leaflet＋国土地理院地図（GitHub Pages）、Cloudflare Workers＋KV、AI（Claude）＋OpenStreetMap</b> を採用しました。</p>
+  <p>最も工夫したのは<b>「情報の鮮度をピンに持たせない」</b>設計——ピンは位置と入口だけを持ち、ワンタップで常に最新の公式ページへ直行。そして<b>登山道をタップすると、自分のルートに関係する情報だけが浮かび上がります</b>。</p>
 </section>
 
 <section class="slide">
@@ -49,6 +59,12 @@
     <li>その場で誰でも投稿（写真つき）— 双方向の目撃網</li>
   </ul>
   <p class="kv" style="color:#fbbf24">▶ ライブデモ：ピン→公式直行 ／ 大倉尾根タップ→沿線集計 ／ 会場から投稿</p>
+</section>
+
+<section class="slide script">
+  <h2>最大の強み：情報が一方通行ではない</h2>
+  <p>行政が発信した<b>公式情報</b>だけでなく、実際に現地を歩く利用者の<b>リアルな投稿（写真つき）もその場で集まります</b>。行政側もこの最新データを参照することで、危険箇所の事前対応や的確な安全対策を講じられる<b>「双方向のフィードバック機構」</b>。</p>
+  <p>つまり、<b>利用者が増えれば増えるほど情報の濃度と精度が上がり</b>、登山者と行政の双方にとって価値が高まり続ける仕組みです。</p>
 </section>
 
 <section class="slide">
