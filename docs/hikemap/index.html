@@ -126,10 +126,26 @@ L.tileLayer("https://cyberjapandata.gsi.go.jp/xyz/pale/{z}/{x}/{y}.png", {
 
 // 対応エリア（MVP範囲）だけ濃く、外側は減光マスク＋破線枠で「どこを実装したか」を可視化
 const outerRing = [[-85, -180], [-85, 180], [85, 180], [85, -180]];
-const areaHoles = Object.values(AREAS).map(a => {
-  const [[s, w], [n, e]] = a.bounds;
-  return [[s, w], [s, e], [n, e], [n, w]];
-});
+// 穴同士が重なるとevenoddで塗りが反転するため、3エリアの合併を
+// 緯度帯×マージ済み経度区間の「互いに素な矩形」に分解してから開ける
+const areaHoles = (() => {
+  const rects = Object.values(AREAS).map(a => a.bounds);
+  const ys = [...new Set(rects.flatMap(r => [r[0][0], r[1][0]]))].sort((a, b) => a - b);
+  const holes = [];
+  for (let i = 0; i < ys.length - 1; i++) {
+    const s = ys[i], n = ys[i + 1], mid = (s + n) / 2;
+    const iv = rects.filter(r => r[0][0] <= mid && mid <= r[1][0])
+      .map(r => [r[0][1], r[1][1]]).sort((a, b) => a[0] - b[0]);
+    const merged = [];
+    for (const [w, e] of iv) {
+      if (merged.length && w <= merged[merged.length - 1][1])
+        merged[merged.length - 1][1] = Math.max(merged[merged.length - 1][1], e);
+      else merged.push([w, e]);
+    }
+    for (const [w, e] of merged) holes.push([[s, w], [s, e], [n, e], [n, w]]);
+  }
+  return holes;
+})();
 L.polygon([outerRing, ...areaHoles],
   { stroke: false, fillColor: "#eef2f6", fillOpacity: .62, interactive: false }).addTo(map);
 for (const a of Object.values(AREAS)) {
