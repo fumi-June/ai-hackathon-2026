@@ -80,19 +80,14 @@
     <button data-area="chichibu" class="area">秩父・両神山</button>
     <button id="postBtn">📍 投稿する</button>
     <button id="reloadBtn" title="みんなの投稿を再取得">🔄 更新</button>
-    <button id="moreBtn" title="検索と凡例の表示切替">🔍 検索・凡例</button>
+    <button id="moreBtn" title="凡例の表示切替">🗒 凡例</button>
   </div>
   <div id="routeInfo"></div>
   <div id="more">
-  <div class="searchrow">
-    <input id="q" placeholder="住所・施設名で場所を指定（例：奥多摩駅、清川村煤ヶ谷）"/>
-    <button id="qBtn">検索</button>
-  </div>
-  <div id="cands"></div>
   <div class="legend">
     <span class="lg">危険：<i style="background:#d32f2f"></i>人身被害<i style="background:#f57c00"></i>クマ目撃<i style="background:#fbc02d"></i>痕跡<i style="background:#7b1fa2"></i>通行止め<i style="background:#37474f"></i>公式マップ入口</span>
     <span class="lg">楽しみ：<i style="background:#2e7d32"></i>山小屋<i style="background:#1565c0"></i>展望<i style="background:#00838f"></i>食<i style="background:#607d8b"></i>🚻トイレ</span>
-    <span class="lg"><i style="background:#d81b60"></i>みんなの投稿</span>
+    <span class="lg"><i style="background:#00bcd4"></i>みんなの投稿</span>
   </div>
   </div>
 </div>
@@ -106,7 +101,7 @@
 <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
 const POSTS_API = "https://hikemap-reports.fumi-june.workers.dev/";
-const GSI_SEARCH = "https://msearch.gsi.go.jp/address-search/AddressSearch?q=";
+const POST_COLOR = "#00bcd4";  // みんなの投稿（人身被害の赤と紛れないシアン）
 
 const AREAS = {
   tanzawa:  { label: "丹沢山塊",     bounds: [[35.38, 139.02], [35.58, 139.30]] },
@@ -290,6 +285,47 @@ function applyRelevance() {
 // 地図上のルート線タップでのみ沿線情報とAIカード絞りが働く）
 
 // ---- みんなの投稿（更新は 初回 / 自分の投稿直後 / 手動🔄 のみ。ポーリングなし） ----
+// 写真のEXIFからGPS座標を読む（JPEGのAPP1/TIFF/GPS IFDを直接パース、ライブラリ不要）。
+// 注意：送信画像はcanvas再エンコードでEXIFが消えるため、位置情報が写真として公開されることはない。
+// 座標は下の確認ダイアログでユーザーが明示許可した場合のみ投稿位置として使う。
+async function photoGPS(file) {
+  try {
+    const buf = new DataView(await file.slice(0, 262144).arrayBuffer());
+    if (buf.getUint16(0) !== 0xFFD8) return null;
+    let o = 2;
+    while (o + 4 < buf.byteLength) {
+      const mk = buf.getUint16(o), len = buf.getUint16(o + 2);
+      if (mk === 0xFFE1 && buf.getUint32(o + 4) === 0x45786966) {
+        const tiff = o + 10;
+        const le = buf.getUint16(tiff) === 0x4949;
+        const g16 = x => buf.getUint16(x, le), g32 = x => buf.getUint32(x, le);
+        const ifd = tiff + g32(tiff + 4);
+        let gps = 0;
+        for (let i = 0, n = g16(ifd); i < n; i++) {
+          const e = ifd + 2 + i * 12;
+          if (g16(e) === 0x8825) gps = tiff + g32(e + 8);
+        }
+        if (!gps) return null;
+        const rat = x => g32(x) / (g32(x + 4) || 1);
+        const dms = x => rat(x) + rat(x + 8) / 60 + rat(x + 16) / 3600;
+        let latR, lonR, lat, lon;
+        for (let i = 0, n = g16(gps); i < n; i++) {
+          const e = gps + 2 + i * 12, tag = g16(e), v = tiff + g32(e + 8);
+          if (tag === 1) latR = String.fromCharCode(buf.getUint8(e + 8));
+          if (tag === 2) lat = dms(v);
+          if (tag === 3) lonR = String.fromCharCode(buf.getUint8(e + 8));
+          if (tag === 4) lon = dms(v);
+        }
+        if (lat == null || lon == null || !isFinite(lat) || !isFinite(lon) || (!lat && !lon)) return null;
+        return { lat: latR === "S" ? -lat : lat, lng: lonR === "W" ? -lon : lon };
+      }
+      if ((mk & 0xFF00) !== 0xFF00) break;
+      o += 2 + len;
+    }
+  } catch {}
+  return null;
+}
+
 // 写真は640px/JPEGに縮小してから送信（実測で数十KB程度）
 function shrinkImage(file) {
   return new Promise(res => {
@@ -329,7 +365,7 @@ async function loadPosts() {
     const posts = await (await fetch(POSTS_API)).json();
     postsLayer.clearLayers(); postMarkers.length = 0;
     for (const p of posts) {
-      const m = marker([p.lat, p.lng], "#d81b60", POST_ICONS[p.kind] || "💬").bindPopup(postPopup(p));
+      const m = marker([p.lat, p.lng], POST_COLOR, POST_ICONS[p.kind] || "💬").bindPopup(postPopup(p));
       postsLayer.addLayer(m); postMarkers.push({ m, lat: p.lat, lng: p.lng, p });
     }
     if (selectedRoute) applyRelevance();
@@ -365,9 +401,15 @@ function openPostForm(latlng) {
     if (!text) { toast("コメントを入力してください"); return; }
     btn.disabled = true; btn.textContent = "送信中…";
     try {
+      let at = latlng;
+      if (fi.files[0]) {
+        const g = await photoGPS(fi.files[0]);
+        if (g && g.lat > 20 && g.lat < 46 && g.lng > 122 && g.lng < 154 &&
+            confirm("写真に位置情報（GPS）が含まれています。\nタップ地点ではなく、写真の撮影場所にピンを立てますか？\n（送信される写真自体からは位置情報を除去します）")) at = g;
+      }
       const photo = fi.files[0] ? await shrinkImage(fi.files[0]) : "";
       const r = await fetch(POSTS_API, { method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ lat: latlng.lat, lng: latlng.lng, kind: sel.value, text, photo }) });
+        body: JSON.stringify({ lat: at.lat, lng: at.lng, kind: sel.value, text, photo }) });
       if (!r.ok) throw 0;
       map.closePopup(pop); postMode = false; $("postBtn").classList.remove("act");
       await loadPosts(); toast("投稿しました！");
@@ -375,25 +417,7 @@ function openPostForm(latlng) {
   };
 }
 
-// ---- 住所・施設名検索（国土地理院ジオコーダ、キー不要・CORS確認済み） ----
-$("qBtn").onclick = doSearch;
-$("q").addEventListener("keydown", e => { if (e.key === "Enter") doSearch(); });
-async function doSearch() {
-  const q = $("q").value.trim(); if (!q) return;
-  $("cands").textContent = "検索中…";
-  try {
-    const res = await (await fetch(GSI_SEARCH + encodeURIComponent(q))).json();
-    $("cands").textContent = "";
-    if (!res.length) { $("cands").textContent = "見つかりません——地図を直接タップでも投稿できます"; return; }
-    for (const c of res.slice(0, 5)) {
-      const [lng, lat] = c.geometry.coordinates;
-      const div = document.createElement("div"); div.textContent = "📍 " + c.properties.title;
-      div.onclick = () => { $("cands").textContent = ""; map.flyTo([lat, lng], 14);
-        setTimeout(() => openPostForm(L.latLng(lat, lng)), 600); };
-      $("cands").appendChild(div);
-    }
-  } catch { $("cands").textContent = "検索に失敗——地図を直接タップでも投稿できます"; }
-}
+// 住所・施設名検索はユーザー指定で削除（2026-08-22）。投稿地点は地図タップ or 写真GPS
 
 // ---- 山域切替 ----
 function setArea(area, fly = true) {
