@@ -99,7 +99,8 @@ const COLORS = {
 const POST_KINDS = ["目撃・危険", "景色", "食べ物", "山小屋", "困った", "その他"];
 
 const $ = id => document.getElementById(id);
-const map = L.map("map");
+const map = L.map("map", { zoomControl: false });
+L.control.zoom({ position: "bottomright" }).addTo(map);
 L.tileLayer("https://cyberjapandata.gsi.go.jp/xyz/pale/{z}/{x}/{y}.png", {
   attribution: '<a href="https://maps.gsi.go.jp/development/ichiran.html">国土地理院</a>', maxZoom: 18,
   className: "basemap",
