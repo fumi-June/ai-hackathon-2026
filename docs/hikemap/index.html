@@ -28,6 +28,11 @@
     .btns .chip { background:#eef3f8; border-color:#9db3c8; }
     .btns .chip.sel { background:#ff5722; color:#fff; border-color:#ff5722; }
     #routeInfo { margin-top:4px; font-size:12px; color:#1a3c6e; font-weight:bold; }
+    /* 道路・線路・市街地を背景に沈める（色を持つのはピンとルートだけ） */
+    .basemap { filter: grayscale(.85) brightness(1.07) contrast(.92); }
+    .arealabel { background:rgba(255,255,255,.9); border:1px solid #1a3c6e; color:#1a3c6e;
+                 border-radius:4px; padding:1px 6px; font-size:11px; font-weight:bold; box-shadow:none; }
+    .arealabel::before { display:none; }
     .legend { margin-top:6px; color:#333; font-size:11px; line-height:1.9; }
     .legend i { display:inline-block; width:10px; height:10px; border-radius:50%; margin:0 3px 0 8px; }
     .popup b { display:block; margin-bottom:3px; }
@@ -97,7 +102,23 @@ const $ = id => document.getElementById(id);
 const map = L.map("map");
 L.tileLayer("https://cyberjapandata.gsi.go.jp/xyz/pale/{z}/{x}/{y}.png", {
   attribution: '<a href="https://maps.gsi.go.jp/development/ichiran.html">国土地理院</a>', maxZoom: 18,
+  className: "basemap",
 }).addTo(map);
+
+// 対応エリア（MVP範囲）だけ濃く、外側は減光マスク＋破線枠で「どこを実装したか」を可視化
+const outerRing = [[-85, -180], [-85, 180], [85, 180], [85, -180]];
+const areaHoles = Object.values(AREAS).map(a => {
+  const [[s, w], [n, e]] = a.bounds;
+  return [[s, w], [s, e], [n, e], [n, w]];
+});
+L.polygon([outerRing, ...areaHoles],
+  { stroke: false, fillColor: "#eef2f6", fillOpacity: .62, interactive: false }).addTo(map);
+for (const a of Object.values(AREAS)) {
+  L.rectangle(a.bounds, { color: "#1a3c6e", weight: 1.2, dashArray: "6 4", fill: false, interactive: false }).addTo(map);
+  const [[s, w], [n, e]] = a.bounds;
+  L.tooltip({ permanent: true, direction: "top", className: "arealabel" })
+    .setLatLng([n, (w + e) / 2]).setContent("⛰ " + a.label + "（対応エリア）").addTo(map);
+}
 
 const dangerLayer = L.layerGroup().addTo(map);
 const funLayer = L.layerGroup().addTo(map);
