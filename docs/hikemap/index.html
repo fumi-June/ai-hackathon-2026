@@ -18,7 +18,6 @@
                    cursor:pointer; font-size:12px; }
     .btns button.on { background:#1a3c6e; color:#fff; border-color:#1a3c6e; }
     .btns button.act { background:#d81b60; color:#fff; border-color:#d81b60; }
-    .btns button.ai { background:#6a1b9a; color:#fff; border-color:#6a1b9a; font-weight:bold; }
     .searchrow { display:flex; gap:6px; margin-top:6px; }
     .searchrow input { flex:1; padding:5px 8px; border:1px solid #bbb; border-radius:6px; font-size:13px; }
     .searchrow button { padding:5px 10px; border:1px solid #bbb; background:#fff; border-radius:6px; cursor:pointer; }
@@ -33,6 +32,10 @@
     .arealabel { background:rgba(255,255,255,.9); border:1px solid #1a3c6e; color:#1a3c6e;
                  border-radius:4px; padding:1px 6px; font-size:11px; font-weight:bold; box-shadow:none; }
     .arealabel::before { display:none; }
+    .route-label { background:rgba(255,255,255,.88); border:1px solid #e64a19; color:#bf360c;
+                   font-size:10px; font-weight:bold; padding:0 4px; box-shadow:none; }
+    .route-label::before { display:none; }
+    .lowzoom .route-label { display:none; }
     @media (max-width: 600px) {
       .bar h1 small span.tag { display:none; }  /* モバイルはタグライン非表示 */
       .btns button { min-height:44px; padding:8px 12px; }   /* タッチターゲット44px */
@@ -49,15 +52,6 @@
     .popup b { display:block; margin-bottom:3px; }
     .popup .date { display:inline-block; background:#eee; border-radius:4px; padding:0 5px; font-size:11px; margin-bottom:3px; }
     .popup a { word-break:break-all; color:#0b57d0; }
-    #card { position:fixed; z-index:1100; right:10px; bottom:10px; top:auto; width:min(360px, calc(100vw - 20px));
-            max-height:70vh; overflow:auto; background:#fff; border-radius:12px; padding:14px;
-            box-shadow:0 4px 16px rgba(0,0,0,.35); font-size:13px; display:none; }
-    #card h2 { font-size:15px; margin:0 24px 8px 0; }
-    #card h3 { font-size:13px; margin:10px 0 4px; }
-    #card ul { margin:0; padding-left:18px; }
-    #card .x { position:absolute; top:8px; right:10px; border:none; background:none; font-size:18px; cursor:pointer; }
-    #card .note { color:#555; margin-top:8px; }
-    #card .asof { color:#888; font-size:11px; margin-top:8px; }
     .postform select, .postform textarea { width:100%; margin:3px 0; font-size:13px; }
     .postform button { width:100%; padding:6px; background:#d81b60; color:#fff; border:none; border-radius:6px; cursor:pointer; }
     #toast { position:fixed; z-index:1200; left:50%; transform:translateX(-50%); bottom:16px;
@@ -73,7 +67,6 @@
     <button data-area="chichibu" class="area">秩父・両神山</button>
     <button id="postBtn">📍 投稿する</button>
     <button id="reloadBtn" title="みんなの投稿を再取得">🔄 更新</button>
-    <button id="aiBtn" class="ai">⚡ AI準備完了カード</button>
     <button id="moreBtn" title="検索と凡例の表示切替">🔍 検索・凡例</button>
   </div>
   <div id="routeInfo"></div>
@@ -85,18 +78,16 @@
   <div id="cands"></div>
   <div class="legend">
     <span class="lg">危険：<i style="background:#d32f2f"></i>人身被害<i style="background:#f57c00"></i>クマ目撃<i style="background:#fbc02d"></i>痕跡<i style="background:#7b1fa2"></i>通行止め<i style="background:#37474f"></i>公式マップ入口</span>
-    <span class="lg">楽しみ：<i style="background:#2e7d32"></i>山小屋<i style="background:#1565c0"></i>展望<i style="background:#00838f"></i>食</span>
+    <span class="lg">楽しみ：<i style="background:#2e7d32"></i>山小屋<i style="background:#1565c0"></i>展望<i style="background:#00838f"></i>食<i style="background:#607d8b"></i>🚻トイレ</span>
     <span class="lg"><i style="background:#d81b60"></i>みんなの投稿</span>
   </div>
   </div>
 </div>
 <div id="map"></div>
-<div id="card"><button class="x" onclick="card.style.display='none'">✕</button><div id="cardBody"></div></div>
 <div id="toast"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
-const PROXY = "https://ai-proxy.fumi-june.workers.dev/";
 const POSTS_API = "https://hikemap-reports.fumi-june.workers.dev/";
 const GSI_SEARCH = "https://msearch.gsi.go.jp/address-search/AddressSearch?q=";
 
@@ -107,7 +98,7 @@ const AREAS = {
 };
 const COLORS = {
   attack: "#d32f2f", sighting: "#f57c00", trace: "#fbc02d", closure: "#7b1fa2", official: "#37474f",
-  hut: "#2e7d32", view: "#1565c0", food: "#00838f",
+  hut: "#2e7d32", view: "#1565c0", food: "#00838f", toilet: "#607d8b",
 };
 const POST_KINDS = ["目撃・危険", "景色", "食べ物", "山小屋", "困った", "その他"];
 
@@ -150,9 +141,6 @@ L.polygon([outerRing, ...areaHoles],
   { stroke: false, fillColor: "#eef2f6", fillOpacity: .62, interactive: false }).addTo(map);
 for (const a of Object.values(AREAS)) {
   L.rectangle(a.bounds, { color: "#1a3c6e", weight: 1.2, dashArray: "6 4", fill: false, interactive: false }).addTo(map);
-  const [[s, w], [n, e]] = a.bounds;
-  L.tooltip({ permanent: true, direction: "top", className: "arealabel" })
-    .setLatLng([n, (w + e) / 2]).setContent("⛰ " + a.label + "（対応エリア）").addTo(map);
 }
 
 const dangerLayer = L.layerGroup().addTo(map);
@@ -225,8 +213,16 @@ fetch("./routes.geojson").then(r => r.json()).then(g => {
       .on("click", () => { if (currentArea !== rec.area) setArea(rec.area, false); selectRoute(rec); });
     routesLayer.addLayer(rec.line);
     routes.push(rec);
+    // 登山道名ラベル（最長区間の中間点。ズーム11未満では非表示にしてクラッタ回避）
+    const longest = f.geometry.coordinates.reduce((a, b) => b.length > a.length ? b : a);
+    const mid = longest[Math.floor(longest.length / 2)];
+    routesLayer.addLayer(L.tooltip({ permanent: true, direction: "top", className: "route-label" })
+      .setLatLng([mid[1], mid[0]]).setContent(rec.name));
   }
+  gateLabels();
 }).catch(() => {});
+const gateLabels = () => map.getContainer().classList.toggle("lowzoom", map.getZoom() < 11);
+map.on("zoomend", gateLabels);
 function selectRoute(r) {
   selectedRoute = (r === selectedRoute) ? null : r;
   // 全ルート常時・濃いオレンジ（ユーザー指定）。選択の区別は太さのみ
@@ -344,67 +340,7 @@ function setArea(area, fly = true) {
 }
 for (const btn of document.querySelectorAll(".area")) btn.onclick = () => setArea(btn.dataset.area);
 
-// ---- AI準備完了カード（表示中の山域ピン → Claude。失敗しても地図と投稿は独立して生きる） ----
-const card = $("card");
-$("aiBtn").onclick = makeBriefing;
-async function makeBriefing() {
-  const a = AREAS[currentArea];
-  const scope = a.label + (selectedRoute ? "・" + selectedRoute.name : "");
-  const feats = allFeatures.filter(f => f.properties.area === currentArea &&
-      (!selectedRoute || pinDistM(f.geometry.coordinates[1], f.geometry.coordinates[0], selectedRoute.segs) <= NEAR_M))
-    .map(f => ({ layer: f.properties.layer, kind: f.properties.kind, title: f.properties.title,
-                 date: f.properties.date, summary: f.properties.summary }));
-  card.style.display = "block";
-  $("cardBody").textContent = `⚡ ${scope}の準備完了カードを生成中…`;
-  try {
-    const r = await fetch(PROXY, { method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ model: "claude-sonnet-5", max_tokens: 900, stream: false,
-        messages: [{ role: "user", content:
-          `あなたは登山ガイド。${scope}へ明日登る人向けの「準備完了カード」を作る。以下は現地（ルート指定時はそのルート沿い500m）の危険・楽しみピン情報(JSON): ` +
-          JSON.stringify(feats) +
-          ` 出力は次のJSONのみ（コードフェンス不要）: {"dangers":["危険の要点を最大3件、日付が新しいもの優先"],"highlights":["楽しみの要点を最大3件"],"gear":["この状況に合わせた持ち物4〜6点"],"note":"一言アドバイス"}` }] }),
-    });
-    if (!r.ok) throw 0;
-    const j = await r.json();
-    let text = (j.content && j.content[0] && j.content[0].text) || "";
-    renderCard(scope, text, feats);
-  } catch {
-    $("cardBody").textContent = "AI応答なし——地図とピンはそのまま使えます。";
-  }
-}
-function renderCard(scope, text, feats) {
-  const body = $("cardBody"); body.textContent = "";
-  const h = document.createElement("h2"); h.textContent = `✅ ${scope}・準備完了カード`; body.appendChild(h);
-  let d;
-  try { d = JSON.parse(text.replace(/^```json?\s*|\s*```$/g, "")); } catch { d = null; }
-  if (!d) { const pre = document.createElement("div"); pre.textContent = text; body.appendChild(pre); }
-  else {
-    const secs = [["⚠️ 危険（直近）", d.dangers], ["🌄 楽しみ", d.highlights], ["🎒 持ち物", d.gear]];
-    for (const [title, items] of secs) {
-      if (!Array.isArray(items) || !items.length) continue;
-      const h3 = document.createElement("h3"); h3.textContent = title; body.appendChild(h3);
-      const ul = document.createElement("ul");
-      for (const it of items) { const li = document.createElement("li"); li.textContent = String(it); ul.appendChild(li); }
-      body.appendChild(ul);
-    }
-    if (d.note) { const n = document.createElement("div"); n.className = "note"; n.textContent = "💡 " + d.note; body.appendChild(n); }
-  }
-  const links = allFeatures.filter(f => f.properties.area === currentArea && f.properties.layer === "danger" && f.properties.source_url);
-  if (links.length) {
-    const h3 = document.createElement("h3"); h3.textContent = "🔗 公式情報"; body.appendChild(h3);
-    const seen = new Set();
-    for (const f of links) {
-      if (seen.has(f.properties.source_url)) continue; seen.add(f.properties.source_url);
-      const a2 = document.createElement("a"); a2.href = f.properties.source_url; a2.target = "_blank"; a2.rel = "noopener";
-      a2.textContent = "・" + f.properties.title; body.appendChild(a2); body.appendChild(document.createElement("br"));
-      if (seen.size >= 4) break;
-    }
-  }
-  const dates = feats.map(f => f.date).filter(Boolean).sort();
-  const asof = document.createElement("div"); asof.className = "asof";
-  asof.textContent = dates.length ? `ピン情報の取得日: 〜${dates[dates.length - 1]}／最新はリンク先の公式ページで` : "";
-  body.appendChild(asof);
-}
+// AI準備完了カードはユーザー指定で削除（2026-08-22）。ai-proxy依存もなし
 </script>
 </body>
 </html>
