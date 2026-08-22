@@ -36,6 +36,10 @@
                    font-size:10px; font-weight:bold; padding:0 4px; box-shadow:none; }
     .route-label::before { display:none; }
     .lowzoom .route-label { display:none; }
+    .pinicon span { display:flex; width:26px; height:26px; border-radius:50%; align-items:center;
+      justify-content:center; font-size:14px; border:2px solid #fff;
+      box-shadow:0 1px 3px rgba(0,0,0,.45); }
+    .pinicon.near span { box-shadow:0 0 0 4px #ff5722, 0 1px 3px rgba(0,0,0,.45); }
     @media (max-width: 600px) {
       .bar h1 small span.tag { display:none; }  /* モバイルはタグライン非表示 */
       .btns button { min-height:44px; padding:8px 12px; }   /* タッチターゲット44px */
@@ -101,6 +105,9 @@ const COLORS = {
   hut: "#2e7d32", view: "#1565c0", food: "#00838f", toilet: "#607d8b",
 };
 const POST_KINDS = ["目撃・危険", "景色", "食べ物", "山小屋", "困った", "その他"];
+const ICONS = { attack: "🐻", sighting: "🐻", trace: "🐾", closure: "🚧", official: "🗺️",
+                hut: "🏠", view: "🔭", food: "🍜", toilet: "🚻" };
+const POST_ICONS = { "目撃・危険": "🐻", "景色": "📷", "食べ物": "🍜", "山小屋": "🏠", "困った": "😵", "その他": "💬" };
 
 const $ = id => document.getElementById(id);
 // モバイルは地図が主役：検索・凡例は畳んでバー占有率を下げる（🔍で開閉）
@@ -157,8 +164,11 @@ map.fitBounds(AREAS.tanzawa.bounds);
 function toast(msg) { const t = $("toast"); t.textContent = msg; t.style.display = "block";
   clearTimeout(t._h); t._h = setTimeout(() => t.style.display = "none", 2500); }
 
-function marker(latlng, color) {
-  return L.circleMarker(latlng, { radius: 8, color, fillColor: color, fillOpacity: .85, weight: 2 });
+// 絵文字バッジピン（色=種別の系統、絵文字=具体的な種類。colorとiconは自前の定数のみ）
+function marker(latlng, color, icon) {
+  return L.marker(latlng, { icon: L.divIcon({ className: "pinicon",
+    html: '<span style="background:' + color + '">' + icon + '</span>',
+    iconSize: [26, 26], iconAnchor: [13, 13], popupAnchor: [0, -12] }) });
 }
 
 // 静的ピン描画（XSS対策：全てDOM APIで組み立て、innerHTMLに外部文字列を入れない）
@@ -177,7 +187,7 @@ fetch("./pins.geojson").then(r => r.json()).then(g => {
   allFeatures = g.features || [];
   for (const f of allFeatures) {
     const p = f.properties, [lng, lat] = f.geometry.coordinates;
-    const m = marker([lat, lng], COLORS[p.kind] || "#666").bindPopup(pinPopup(p));
+    const m = marker([lat, lng], COLORS[p.kind] || "#666", ICONS[p.kind] || "📍").bindPopup(pinPopup(p));
     (p.layer === "danger" ? dangerLayer : funLayer).addLayer(m);
     staticMarkers.push({ m, lat, lng, p });
   }
@@ -236,11 +246,11 @@ function selectRoute(r) {
 function applyRelevance() {
   let cd = 0, cf = 0, cp = 0;
   const mark = (rec, isPost) => {
-    // 全ピン常時フル表示（ユーザー指定：濃いまま）。関与は沿線ピンの拡大+太枠で示す
+    // 全ピン常時フル表示（ユーザー指定：濃いまま）。関与は沿線ピンのオレンジ縁取りで示す
     let near = false;
     if (selectedRoute) near = pinDistM(rec.lat, rec.lng, selectedRoute.segs) <= NEAR_M;
-    rec.m.setStyle({ fillOpacity: .85, opacity: 1, weight: near ? 4 : 2 });
-    rec.m.setRadius(selectedRoute && near ? 11 : 8);
+    const el = rec.m.getElement();
+    if (el) el.classList.toggle("near", !!(selectedRoute && near));
     if (near) { if (isPost) cp++; else if (rec.p.layer === "danger") cd++; else cf++; }
   };
   staticMarkers.forEach(r => mark(r, false));
@@ -268,7 +278,7 @@ async function loadPosts() {
     const posts = await (await fetch(POSTS_API)).json();
     postsLayer.clearLayers(); postMarkers.length = 0;
     for (const p of posts) {
-      const m = marker([p.lat, p.lng], "#d81b60").bindPopup(postPopup(p));
+      const m = marker([p.lat, p.lng], "#d81b60", POST_ICONS[p.kind] || "💬").bindPopup(postPopup(p));
       postsLayer.addLayer(m); postMarkers.push({ m, lat: p.lat, lng: p.lng, p });
     }
     if (selectedRoute) applyRelevance();
