@@ -290,6 +290,22 @@ function applyRelevance() {
 // 地図上のルート線タップでのみ沿線情報とAIカード絞りが働く）
 
 // ---- みんなの投稿（更新は 初回 / 自分の投稿直後 / 手動🔄 のみ。ポーリングなし） ----
+// 写真は640px/JPEGに縮小してから送信（実測で数十KB程度）
+function shrinkImage(file) {
+  return new Promise(res => {
+    const img = new Image();
+    img.onload = () => {
+      const s = Math.min(1, 640 / Math.max(img.width, img.height));
+      const c = document.createElement("canvas");
+      c.width = Math.round(img.width * s); c.height = Math.round(img.height * s);
+      c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+      const u = c.toDataURL("image/jpeg", .62);
+      res(u.length <= 400000 ? u : "");
+    };
+    img.onerror = () => res("");
+    img.src = URL.createObjectURL(file);
+  });
+}
 function postPopup(p) {
   const d = document.createElement("div"); d.className = "popup";
   const b = document.createElement("b"); b.textContent = "💬 " + p.kind; d.appendChild(b);
@@ -297,6 +313,14 @@ function postPopup(p) {
   s.textContent = new Date(p.ts).toLocaleString("ja-JP", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" });
   d.appendChild(s);
   const t = document.createElement("div"); t.textContent = p.text; d.appendChild(t);
+  if (p.hasPhoto) {
+    const img = document.createElement("img");
+    img.style.cssText = "max-width:210px;display:block;margin-top:5px;border-radius:6px";
+    img.alt = "投稿写真";
+    fetch(POSTS_API + "?photo=" + encodeURIComponent("p:" + p.ts + "-" + p.id))
+      .then(r => r.ok ? r.text() : "").then(u => { if (u) img.src = u; });
+    d.appendChild(img);
+  }
   return d;
 }
 const postMarkers = [];
@@ -332,6 +356,8 @@ function openPostForm(latlng) {
   d.appendChild(sel);
   const ta = document.createElement("textarea"); ta.rows = 3; ta.maxLength = 140;
   ta.placeholder = "140字まで（例：この先の水場付近で足跡を見た／茶屋のなめこ汁が最高）"; d.appendChild(ta);
+  const fi = document.createElement("input"); fi.type = "file"; fi.accept = "image/*";
+  fi.style.cssText = "width:100%;margin:3px 0;font-size:12px"; d.appendChild(fi);
   const btn = document.createElement("button"); btn.textContent = "投稿する"; d.appendChild(btn);
   const pop = L.popup().setLatLng(latlng).setContent(d).openOn(map);
   btn.onclick = async () => {
@@ -339,8 +365,9 @@ function openPostForm(latlng) {
     if (!text) { toast("コメントを入力してください"); return; }
     btn.disabled = true; btn.textContent = "送信中…";
     try {
+      const photo = fi.files[0] ? await shrinkImage(fi.files[0]) : "";
       const r = await fetch(POSTS_API, { method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ lat: latlng.lat, lng: latlng.lng, kind: sel.value, text }) });
+        body: JSON.stringify({ lat: latlng.lat, lng: latlng.lng, kind: sel.value, text, photo }) });
       if (!r.ok) throw 0;
       map.closePopup(pop); postMode = false; $("postBtn").classList.remove("act");
       await loadPosts(); toast("投稿しました！");
