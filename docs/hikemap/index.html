@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>ヤマスキップ — 山の準備、早送りマップ（丹沢・奥多摩・秩父）</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css"/>
+  <style>
+    body { margin:0; font-family:"Hiragino Sans","Noto Sans JP",system-ui,sans-serif; }
+    #map { height:100vh; width:100%; background:#e8eef5; }
+    .bar { position:absolute; z-index:1000; top:10px; left:10px; right:10px; max-width:760px;
+           background:rgba(255,255,255,.96); padding:8px 12px; border-radius:10px;
+           box-shadow:0 1px 4px rgba(0,0,0,.25); font-size:13px; }
+    .bar h1 { font-size:15px; margin:0 0 6px; }
+    .bar h1 small { font-weight:normal; color:#555; font-size:11px; }
+    .btns { display:flex; flex-wrap:wrap; gap:6px; align-items:center; }
+    .btns button { padding:5px 10px; border:1px solid #bbb; background:#fff; border-radius:16px;
+                   cursor:pointer; font-size:12px; }
+    .btns button.on { background:#1a3c6e; color:#fff; border-color:#1a3c6e; }
+    .btns button.act { background:#d81b60; color:#fff; border-color:#d81b60; }
+    .btns button.ai { background:#6a1b9a; color:#fff; border-color:#6a1b9a; font-weight:bold; }
+    .searchrow { display:flex; gap:6px; margin-top:6px; }
+    .searchrow input { flex:1; padding:5px 8px; border:1px solid #bbb; border-radius:6px; font-size:13px; }
+    .searchrow button { padding:5px 10px; border:1px solid #bbb; background:#fff; border-radius:6px; cursor:pointer; }
+    #cands { margin-top:4px; }
+    #cands div { padding:4px 8px; background:#f0f4ff; border-radius:6px; margin-top:3px; cursor:pointer; }
+    #cands div:hover { background:#dbe6ff; }
+    .legend { margin-top:6px; color:#333; font-size:11px; line-height:1.9; }
+    .legend i { display:inline-block; width:10px; height:10px; border-radius:50%; margin:0 3px 0 8px; }
+    .popup b { display:block; margin-bottom:3px; }
+    .popup .date { display:inline-block; background:#eee; border-radius:4px; padding:0 5px; font-size:11px; margin-bottom:3px; }
+    .popup a { word-break:break-all; color:#0b57d0; }
+    #card { position:fixed; z-index:1100; right:10px; bottom:10px; top:auto; width:min(360px, calc(100vw - 20px));
+            max-height:70vh; overflow:auto; background:#fff; border-radius:12px; padding:14px;
+            box-shadow:0 4px 16px rgba(0,0,0,.35); font-size:13px; display:none; }
+    #card h2 { font-size:15px; margin:0 24px 8px 0; }
+    #card h3 { font-size:13px; margin:10px 0 4px; }
+    #card ul { margin:0; padding-left:18px; }
+    #card .x { position:absolute; top:8px; right:10px; border:none; background:none; font-size:18px; cursor:pointer; }
+    #card .note { color:#555; margin-top:8px; }
+    #card .asof { color:#888; font-size:11px; margin-top:8px; }
+    .postform select, .postform textarea { width:100%; margin:3px 0; font-size:13px; }
+    .postform button { width:100%; padding:6px; background:#d81b60; color:#fff; border:none; border-radius:6px; cursor:pointer; }
+    #toast { position:fixed; z-index:1200; left:50%; transform:translateX(-50%); bottom:16px;
+             background:#333; color:#fff; padding:8px 16px; border-radius:20px; font-size:13px; display:none; }
+  </style>
+</head>
+<body>
+<div class="bar">
+  <h1>⛰️ ヤマスキップ <small>— 危険も楽しみも1画面。登山の準備、早送り。<a href="../presen.html">▶ プレゼン</a></small></h1>
+  <div class="btns">
+    <button data-area="tanzawa" class="area on">丹沢</button>
+    <button data-area="okutama" class="area">奥多摩・高尾</button>
+    <button data-area="chichibu" class="area">秩父・両神山</button>
+    <button id="postBtn">📍 投稿する</button>
+    <button id="reloadBtn" title="みんなの投稿を再取得">🔄 更新</button>
+    <button id="aiBtn" class="ai">⚡ AI準備完了カード</button>
+  </div>
+  <div class="searchrow">
+    <input id="q" placeholder="住所・施設名で場所を指定（例：奥多摩駅、清川村煤ヶ谷）"/>
+    <button id="qBtn">検索</button>
+  </div>
+  <div id="cands"></div>
+  <div class="legend">
+    危険：<i style="background:#d32f2f"></i>人身被害<i style="background:#f57c00"></i>クマ目撃<i style="background:#fbc02d"></i>痕跡<i style="background:#7b1fa2"></i>通行止め<i style="background:#37474f"></i>公式マップ入口
+    ／楽しみ：<i style="background:#2e7d32"></i>山小屋<i style="background:#1565c0"></i>展望<i style="background:#00838f"></i>食
+    ／<i style="background:#d81b60"></i>みんなの投稿
+  </div>
+</div>
+<div id="map"></div>
+<div id="card"><button class="x" onclick="card.style.display='none'">✕</button><div id="cardBody"></div></div>
+<div id="toast"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+const PROXY = "https://ai-proxy.fumi-june.workers.dev/";
+const POSTS_API = "https://hikemap-reports.fumi-june.workers.dev/";
+const GSI_SEARCH = "https://msearch.gsi.go.jp/address-search/AddressSearch?q=";
+
+const AREAS = {
+  tanzawa:  { label: "丹沢山塊",     bounds: [[35.38, 139.02], [35.58, 139.30]] },
+  okutama:  { label: "奥多摩・高尾", bounds: [[35.55, 138.93], [36.00, 139.35]] },
+  chichibu: { label: "秩父・両神山", bounds: [[35.85, 138.65], [36.10, 139.20]] },
+};
+const COLORS = {
+  attack: "#d32f2f", sighting: "#f57c00", trace: "#fbc02d", closure: "#7b1fa2", official: "#37474f",
+  hut: "#2e7d32", view: "#1565c0", food: "#00838f",
+};
+const POST_KINDS = ["目撃・危険", "景色", "食べ物", "山小屋", "困った", "その他"];
+
+const $ = id => document.getElementById(id);
+const map = L.map("map");
+L.tileLayer("https://cyberjapandata.gsi.go.jp/xyz/pale/{z}/{x}/{y}.png", {
+  attribution: '<a href="https://maps.gsi.go.jp/development/ichiran.html">国土地理院</a>', maxZoom: 18,
+}).addTo(map);
+
+const dangerLayer = L.layerGroup().addTo(map);
+const funLayer = L.layerGroup().addTo(map);
+const postsLayer = L.layerGroup().addTo(map);
+L.control.layers(null, { "⚠️ 危険（公式）": dangerLayer, "🌄 楽しみ": funLayer, "💬 みんなの投稿": postsLayer },
+  { collapsed: false, position: "bottomleft" }).addTo(map);
+
+let currentArea = "tanzawa";
+let allFeatures = [];
+map.fitBounds(AREAS.tanzawa.bounds);
+
+function toast(msg) { const t = $("toast"); t.textContent = msg; t.style.display = "block";
+  clearTimeout(t._h); t._h = setTimeout(() => t.style.display = "none", 2500); }
+
+function marker(latlng, color) {
+  return L.circleMarker(latlng, { radius: 8, color, fillColor: color, fillOpacity: .85, weight: 2 });
+}
+
+// 静的ピン描画（XSS対策：全てDOM APIで組み立て、innerHTMLに外部文字列を入れない）
+function pinPopup(p) {
+  const d = document.createElement("div"); d.className = "popup";
+  const b = document.createElement("b"); b.textContent = p.title; d.appendChild(b);
+  if (p.date) { const s = document.createElement("span"); s.className = "date"; s.textContent = "情報日: " + p.date; d.appendChild(s); }
+  const sum = document.createElement("div"); sum.textContent = p.summary || ""; d.appendChild(sum);
+  if (p.source_url) { const a = document.createElement("a"); a.href = p.source_url; a.target = "_blank";
+    a.rel = "noopener"; a.textContent = p.kind === "official" ? "▶ 公式マップを開く" : "▶ 公式情報ページへ"; d.appendChild(a); }
+  return d;
+}
+
+fetch("./pins.geojson").then(r => r.json()).then(g => {
+  allFeatures = g.features || [];
+  for (const f of allFeatures) {
+    const p = f.properties, [lng, lat] = f.geometry.coordinates;
+    const m = marker([lat, lng], COLORS[p.kind] || "#666").bindPopup(pinPopup(p));
+    (p.layer === "danger" ? dangerLayer : funLayer).addLayer(m);
+  }
+}).catch(() => toast("ピンデータの読み込みに失敗（地図は使えます）"));
+
+// ---- みんなの投稿（更新は 初回 / 自分の投稿直後 / 手動🔄 のみ。ポーリングなし） ----
+function postPopup(p) {
+  const d = document.createElement("div"); d.className = "popup";
+  const b = document.createElement("b"); b.textContent = "💬 " + p.kind; d.appendChild(b);
+  const s = document.createElement("span"); s.className = "date";
+  s.textContent = new Date(p.ts).toLocaleString("ja-JP", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" });
+  d.appendChild(s);
+  const t = document.createElement("div"); t.textContent = p.text; d.appendChild(t);
+  return d;
+}
+async function loadPosts() {
+  try {
+    const posts = await (await fetch(POSTS_API)).json();
+    postsLayer.clearLayers();
+    for (const p of posts) postsLayer.addLayer(marker([p.lat, p.lng], "#d81b60").bindPopup(postPopup(p)));
+    return posts.length;
+  } catch { toast("投稿の取得に失敗"); return -1; }
+}
+loadPosts();
+$("reloadBtn").onclick = async () => { const n = await loadPosts(); if (n >= 0) toast(`更新しました（投稿 ${n} 件）`); };
+
+// ---- 投稿フォーム（地図クリック / 検索結果の地点） ----
+let postMode = false;
+$("postBtn").onclick = () => {
+  postMode = !postMode;
+  $("postBtn").classList.toggle("act", postMode);
+  toast(postMode ? "地図をタップして投稿地点を指定" : "投稿モード終了");
+};
+map.on("click", e => { if (postMode) openPostForm(e.latlng); });
+
+function openPostForm(latlng) {
+  const d = document.createElement("div"); d.className = "postform";
+  const b = document.createElement("b"); b.textContent = "この地点にコメントを投稿"; d.appendChild(b);
+  const sel = document.createElement("select");
+  for (const k of POST_KINDS) { const o = document.createElement("option"); o.value = o.textContent = k; sel.appendChild(o); }
+  d.appendChild(sel);
+  const ta = document.createElement("textarea"); ta.rows = 3; ta.maxLength = 140;
+  ta.placeholder = "140字まで（例：この先の水場付近で足跡を見た／茶屋のなめこ汁が最高）"; d.appendChild(ta);
+  const btn = document.createElement("button"); btn.textContent = "投稿する"; d.appendChild(btn);
+  const pop = L.popup().setLatLng(latlng).setContent(d).openOn(map);
+  btn.onclick = async () => {
+    const text = ta.value.trim();
+    if (!text) { toast("コメントを入力してください"); return; }
+    btn.disabled = true; btn.textContent = "送信中…";
+    try {
+      const r = await fetch(POSTS_API, { method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ lat: latlng.lat, lng: latlng.lng, kind: sel.value, text }) });
+      if (!r.ok) throw 0;
+      map.closePopup(pop); postMode = false; $("postBtn").classList.remove("act");
+      await loadPosts(); toast("投稿しました！");
+    } catch { btn.disabled = false; btn.textContent = "投稿する"; toast("投稿に失敗しました"); }
+  };
+}
+
+// ---- 住所・施設名検索（国土地理院ジオコーダ、キー不要・CORS確認済み） ----
+$("qBtn").onclick = doSearch;
+$("q").addEventListener("keydown", e => { if (e.key === "Enter") doSearch(); });
+async function doSearch() {
+  const q = $("q").value.trim(); if (!q) return;
+  $("cands").textContent = "検索中…";
+  try {
+    const res = await (await fetch(GSI_SEARCH + encodeURIComponent(q))).json();
+    $("cands").textContent = "";
+    if (!res.length) { $("cands").textContent = "見つかりません——地図を直接タップでも投稿できます"; return; }
+    for (const c of res.slice(0, 5)) {
+      const [lng, lat] = c.geometry.coordinates;
+      const div = document.createElement("div"); div.textContent = "📍 " + c.properties.title;
+      div.onclick = () => { $("cands").textContent = ""; map.flyTo([lat, lng], 14);
+        setTimeout(() => openPostForm(L.latLng(lat, lng)), 600); };
+      $("cands").appendChild(div);
+    }
+  } catch { $("cands").textContent = "検索に失敗——地図を直接タップでも投稿できます"; }
+}
+
+// ---- 山域切替 ----
+for (const btn of document.querySelectorAll(".area")) {
+  btn.onclick = () => {
+    document.querySelectorAll(".area").forEach(b => b.classList.remove("on"));
+    btn.classList.add("on");
+    currentArea = btn.dataset.area;
+    map.flyToBounds(AREAS[currentArea].bounds);
+  };
+}
+
+// ---- AI準備完了カード（表示中の山域ピン → Claude。失敗しても地図と投稿は独立して生きる） ----
+const card = $("card");
+$("aiBtn").onclick = makeBriefing;
+async function makeBriefing() {
+  const a = AREAS[currentArea];
+  const feats = allFeatures.filter(f => f.properties.area === currentArea)
+    .map(f => ({ layer: f.properties.layer, kind: f.properties.kind, title: f.properties.title,
+                 date: f.properties.date, summary: f.properties.summary }));
+  card.style.display = "block";
+  $("cardBody").textContent = `⚡ ${a.label}の準備完了カードを生成中…`;
+  try {
+    const r = await fetch(PROXY, { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ model: "claude-sonnet-5", max_tokens: 900, stream: false,
+        messages: [{ role: "user", content:
+          `あなたは登山ガイド。${a.label}へ明日登る人向けの「準備完了カード」を作る。以下は現地の危険・楽しみピン情報(JSON): ` +
+          JSON.stringify(feats) +
+          ` 出力は次のJSONのみ（コードフェンス不要）: {"dangers":["危険の要点を最大3件、日付が新しいもの優先"],"highlights":["楽しみの要点を最大3件"],"gear":["この状況に合わせた持ち物4〜6点"],"note":"一言アドバイス"}` }] }),
+    });
+    if (!r.ok) throw 0;
+    const j = await r.json();
+    let text = (j.content && j.content[0] && j.content[0].text) || "";
+    renderCard(a, text, feats);
+  } catch {
+    $("cardBody").textContent = "AI応答なし——地図とピンはそのまま使えます。";
+  }
+}
+function renderCard(a, text, feats) {
+  const body = $("cardBody"); body.textContent = "";
+  const h = document.createElement("h2"); h.textContent = `✅ ${a.label}・準備完了カード`; body.appendChild(h);
+  let d;
+  try { d = JSON.parse(text.replace(/^```json?\s*|\s*```$/g, "")); } catch { d = null; }
+  if (!d) { const pre = document.createElement("div"); pre.textContent = text; body.appendChild(pre); }
+  else {
+    const secs = [["⚠️ 危険（直近）", d.dangers], ["🌄 楽しみ", d.highlights], ["🎒 持ち物", d.gear]];
+    for (const [title, items] of secs) {
+      if (!Array.isArray(items) || !items.length) continue;
+      const h3 = document.createElement("h3"); h3.textContent = title; body.appendChild(h3);
+      const ul = document.createElement("ul");
+      for (const it of items) { const li = document.createElement("li"); li.textContent = String(it); ul.appendChild(li); }
+      body.appendChild(ul);
+    }
+    if (d.note) { const n = document.createElement("div"); n.className = "note"; n.textContent = "💡 " + d.note; body.appendChild(n); }
+  }
+  const offs = allFeatures.filter(f => f.properties.area === a.label || (f.properties.area === currentArea && f.properties.kind === "official"));
+  const links = allFeatures.filter(f => f.properties.area === currentArea && f.properties.layer === "danger" && f.properties.source_url);
+  if (links.length) {
+    const h3 = document.createElement("h3"); h3.textContent = "🔗 公式情報"; body.appendChild(h3);
+    const seen = new Set();
+    for (const f of links) {
+      if (seen.has(f.properties.source_url)) continue; seen.add(f.properties.source_url);
+      const a2 = document.createElement("a"); a2.href = f.properties.source_url; a2.target = "_blank"; a2.rel = "noopener";
+      a2.textContent = "・" + f.properties.title; body.appendChild(a2); body.appendChild(document.createElement("br"));
+      if (seen.size >= 4) break;
+    }
+  }
+  const dates = feats.map(f => f.date).filter(Boolean).sort();
+  const asof = document.createElement("div"); asof.className = "asof";
+  asof.textContent = dates.length ? `ピン情報の取得日: 〜${dates[dates.length - 1]}／最新はリンク先の公式ページで` : "";
+  body.appendChild(asof);
+}
+</script>
+</body>
+</html>

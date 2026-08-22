@@ -1,0 +1,4 @@
+{"type":"FeatureCollection","features":[
+{"type":"Feature","geometry":{"type":"Point","coordinates":[139.163,35.454]},"properties":{"layer":"danger","kind":"official","title":"神奈川県ツキノワグマ情報（公式）","date":"2026-08-22","summary":"県の公式目撃情報ページを開く","source_url":"https://www.pref.kanagawa.jp/docs/t4i/cnt/f3813/index.html","area":"tanzawa"}},
+{"type":"Feature","geometry":{"type":"Point","coordinates":[138.841,35.974]},"properties":{"layer":"danger","kind":"official","title":"埼玉県クマ出没情報（公式）","date":"2026-08-22","summary":"県の公式出没マップ入口ページを開く","source_url":"https://www.pref.saitama.lg.jp/a0508/tyouzyu/kumatyui.html","area":"chichibu"}}
+]}
