@@ -28,7 +28,6 @@
     #cands div:hover { background:#dbe6ff; }
     .btns .chip { background:#eef3f8; border-color:#9db3c8; }
     .btns .chip.sel { background:#ff5722; color:#fff; border-color:#ff5722; }
-    #routeInfo { margin-top:4px; font-size:12px; color:#1a3c6e; font-weight:bold; }
     /* 道路・線路・市街地を背景に沈める（色を持つのはピンとルートだけ） */
     .basemap { filter: grayscale(.85) brightness(1.07) contrast(.92); }
     .arealabel { background:rgba(255,255,255,.9); border:1px solid #1a3c6e; color:#1a3c6e;
@@ -41,7 +40,6 @@
     .pinicon span { display:flex; width:26px; height:26px; border-radius:50%; align-items:center;
       justify-content:center; font-size:14px; border:2px solid #fff;
       box-shadow:0 1px 3px rgba(0,0,0,.45); }
-    .pinicon.near span { box-shadow:0 0 0 4px #ff5722, 0 1px 3px rgba(0,0,0,.45); }
     #splash { position:fixed; inset:0; z-index:2000; background:#23262d; display:flex;
       align-items:center; justify-content:center; transition:opacity .5s; }
     #splash.out { opacity:0; pointer-events:none; }
@@ -87,7 +85,6 @@
     <button id="reloadBtn" title="みんなの投稿を再取得">🔄 更新</button>
     <button id="moreBtn" title="凡例の表示切替">🗒 凡例</button>
   </div>
-  <div id="routeInfo"></div>
   <div id="more">
   <div class="legend">
     <span class="lg">危険：<span class="lgi" style="background:#d32f2f">🐻</span>人身被害<span class="lgi" style="background:#f57c00">🐻</span>クマ目撃<span class="lgi" style="background:#fbc02d">🐾</span>痕跡<span class="lgi" style="background:#7b1fa2">🚧</span>通行止め<span class="lgi" style="background:#37474f">🗺️</span>公式マップ入口<span class="lgi" style="background:#4e342e">⚠️</span>過去の主な事故</span>
@@ -132,7 +129,8 @@ const $ = id => document.getElementById(id);
 (() => {
   const sp = $("splash"), v = $("splashVideo");
   let done = false;
-  const end = () => { if (done) return; done = true; sp.classList.add("out"); setTimeout(() => sp.remove(), 600); };
+  const end = () => { if (done) return; done = true; sp.classList.add("out");
+    setTimeout(() => sp.remove(), 600); };
   v.onended = end;
   v.onerror = end;
   $("splashSkip").onclick = end;
@@ -224,34 +222,13 @@ fetch("./pins.geojson").then(r => r.json()).then(g => {
   }
 }).catch(() => toast("ピンデータの読み込みに失敗（地図は使えます）"));
 
-// ---- 登山ルート：選ぶと「自分に関与する情報」だけ浮かび上がる ----
-const NEAR_M = 500;
-let routes = [], selectedRoute = null;
-function segsOf(geom) {
-  const segs = [];
-  for (const line of geom.coordinates)
-    for (let i = 1; i < line.length; i++)
-      segs.push([line[i - 1][1], line[i - 1][0], line[i][1], line[i][0]]);
-  return segs;
-}
-function pinDistM(lat, lng, segs) {
-  const KX = 111320 * Math.cos(lat * Math.PI / 180), KY = 110540;
-  let best = Infinity;
-  for (const [aLat, aLng, bLat, bLng] of segs) {
-    const ax = (aLng - lng) * KX, ay = (aLat - lat) * KY, bx = (bLng - lng) * KX, by = (bLat - lat) * KY;
-    const dx = bx - ax, dy = by - ay, l2 = dx * dx + dy * dy;
-    let t = l2 ? -(ax * dx + ay * dy) / l2 : 0; t = Math.max(0, Math.min(1, t));
-    const d = Math.hypot(ax + t * dx, ay + t * dy);
-    if (d < best) best = d;
-  }
-  return best;
-}
+// ---- 登山ルート：常時オレンジで表示。選択・タップ操作は持たない（ユーザー指定） ----
+let routes = [];
 fetch("./routes.geojson").then(r => r.json()).then(g => {
   for (const f of (g.features || [])) {
-    const rec = { name: f.properties.name, area: f.properties.area, segs: segsOf(f.geometry) };
-    rec.line = L.geoJSON(f, { style: { color: "#e64a19", weight: 4, opacity: .9 } })
-      .bindTooltip(rec.name, { sticky: true })
-      .on("click", () => { if (currentArea !== rec.area) setArea(rec.area, false); selectRoute(rec); });
+    const rec = { name: f.properties.name, area: f.properties.area };
+    rec.line = L.geoJSON(f, { style: { color: "#e64a19", weight: 4, opacity: .9 },
+                              interactive: false });
     routesLayer.addLayer(rec.line);
     routes.push(rec);
     // 登山道名ラベル（最長区間の中間点。ズーム11未満では非表示にしてクラッタ回避）
@@ -264,34 +241,6 @@ fetch("./routes.geojson").then(r => r.json()).then(g => {
 }).catch(() => {});
 const gateLabels = () => map.getContainer().classList.toggle("lowzoom", map.getZoom() < 11);
 map.on("zoomend", gateLabels);
-function selectRoute(r) {
-  selectedRoute = (r === selectedRoute) ? null : r;
-  // 全ルート常時・濃いオレンジ（ユーザー指定）。選択の区別は太さのみ
-  for (const q of routes) q.line.setStyle({
-    color: "#e64a19",
-    weight: q === selectedRoute ? 7 : 4,
-    opacity: .9,
-  });
-  applyRelevance();
-}
-function applyRelevance() {
-  let cd = 0, cf = 0, cp = 0;
-  const mark = (rec, isPost) => {
-    // 全ピン常時フル表示（ユーザー指定：濃いまま）。関与は沿線ピンのオレンジ縁取りで示す
-    let near = false;
-    if (selectedRoute) near = pinDistM(rec.lat, rec.lng, selectedRoute.segs) <= NEAR_M;
-    const el = rec.m.getElement();
-    if (el) el.classList.toggle("near", !!(selectedRoute && near));
-    if (near) { if (isPost) cp++; else if (rec.p.layer === "danger") cd++; else cf++; }
-  };
-  staticMarkers.forEach(r => mark(r, false));
-  postMarkers.forEach(r => mark(r, true));
-  $("routeInfo").textContent = selectedRoute
-    ? `🥾 ${selectedRoute.name} 沿い${NEAR_M}m：⚠️危険${cd}件・🌄楽しみ${cf}件・💬投稿${cp}件（大きいピン＝ルート沿い）`
-    : "";
-}
-// ルート選択チップは廃止（ユーザー指定：ルートは常時表示、選択UIは不要。
-// 地図上のルート線タップでのみ沿線情報とAIカード絞りが働く）
 
 // ---- みんなの投稿（更新は 初回 / 自分の投稿直後 / 手動🔄 のみ。ポーリングなし） ----
 // 写真のEXIFからGPS座標を読む（JPEGのAPP1/TIFF/GPS IFDを直接パース、ライブラリ不要）。
@@ -377,7 +326,6 @@ async function loadPosts() {
       const m = marker([p.lat, p.lng], POST_COLOR, POST_ICONS[p.kind] || "💬").bindPopup(postPopup(p));
       postsLayer.addLayer(m); postMarkers.push({ m, lat: p.lat, lng: p.lng, p });
     }
-    if (selectedRoute) applyRelevance();
     return posts.length;
   } catch { toast("投稿の取得に失敗"); return -1; }
 }
@@ -433,7 +381,6 @@ function setArea(area, fly = true) {
   currentArea = area;
   document.querySelectorAll(".area").forEach(b => b.classList.toggle("on", b.dataset.area === area));
   if (fly) map.flyToBounds(AREAS[area].bounds);
-  if (selectedRoute && selectedRoute.area !== area) selectRoute(selectedRoute); // 解除
 }
 for (const btn of document.querySelectorAll(".area")) btn.onclick = () => setArea(btn.dataset.area);
 
